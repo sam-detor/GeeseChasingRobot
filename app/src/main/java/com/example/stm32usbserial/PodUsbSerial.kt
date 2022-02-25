@@ -53,7 +53,7 @@ class PodUsbSerialService: Service() {
             usbDevices.forEach() { entry ->
                 mDevice = entry.value
                 val intent: PendingIntent =
-                    PendingIntent.getBroadcast(this, 0, Intent(ACTION_USB_PERMISSION), 0)
+                    PendingIntent.getBroadcast(this, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_MUTABLE)
                 mUsbManager.requestPermission(mDevice, intent)
 
                 return
@@ -118,8 +118,8 @@ class PodUsbSerialService: Service() {
                     val granted: Boolean =
                         p1.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
                     // p1.extras!!.getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED)
-
                     if (granted) {
+                        Log.i(TAG, "permission granted")
                         isConnected = true
                         mDevice = p1.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                         mConnection = mUsbManager.openDevice(mDevice)
