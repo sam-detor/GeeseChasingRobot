@@ -98,7 +98,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
             R.id.btn_front -> {
                 val cp: CommanderPacket = CommanderPacket(0F, 1F, 0F, 14000u)
+//                val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.23F)
                 mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+//                Log.i("CLICK", (cp as CrtpPacket).toByteArray().joinToString(" "){ it.toString(radix = 16).padStart(2, '0')})
             }
             R.id.btn_back -> {
                 val cp: CommanderPacket = CommanderPacket(0F, -1F, 0F, 14000u)
