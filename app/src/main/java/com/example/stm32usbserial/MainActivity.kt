@@ -1,19 +1,50 @@
 package com.example.stm32usbserial
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.*
+import android.content.pm.PackageManager
+import android.graphics.*
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.view.SurfaceView
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.google.mlkit.common.model.LocalModel
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.tensorflow.lite.DataType
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.image.ops.Rot90Op
 import java.nio.ByteBuffer
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
+
+    private var previewSV: SurfaceView? = null
+    private var cameraSource: CameraSource? = null
+    private var psv = PreviewSurfaceView()
+
+    private val job = SupervisorJob()
+    private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
+    private val TAG = "MLKit-ODT"
+
+    private val objectDetectionHelper = ObjectDetectionHelper()
+    private val myDriver = Driver()
+
+    //UI Stuff
     private var mTvDevName: TextView? = null
     private var mTvDevVendorId: TextView? = null
     private var mTvDevProductId: TextView? = null
@@ -32,6 +63,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        //Camera UI
+        previewSV = findViewById(R.id.sv_preview)
+
+        //request camera permissions
+        requestPermission()
 
         // UI
         mTvDevName = findViewById(R.id.tv_devName)
@@ -58,6 +95,19 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onStart() {
         super.onStart()
+
+        cameraSource = CameraSource(this, object: CameraSource.CameraSourceListener {
+            override fun processImage(image: Bitmap) {
+                //Log.d(TAG, "hi")
+                runObjectDetection(image)
+                //psv.setPreviewSurfaceView(image)
+
+            }
+            override fun onFPSListener(fps: Int) {}
+        })
+        mCoroutineScope.launch {
+            cameraSource?.initCamera()
+        }
 
         // start and bind service
         val mIntent = Intent(this, PodUsbSerialService::class.java)
@@ -97,10 +147,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 mEtTxMsg?.setText("")
             }
             R.id.btn_front -> {
-                val cp: CommanderPacket = CommanderPacket(0F, 1F, 0F, 14000u)
+                driveCar(1f,0f);
+               /* val cp: CommanderPacket = CommanderPacket(0F, 1F, 0F, 14000u)
 //                val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.23F)
                 mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-//                Log.i("CLICK", (cp as CrtpPacket).toByteArray().joinToString(" "){ it.toString(radix = 16).padStart(2, '0')})
+//                Log.i("CLICK", (cp as CrtpPacket).toByteArray().joinToString(" "){ it.toString(radix = 16).padStart(2, '0')})*/
             }
             R.id.btn_back -> {
                 val cp: CommanderPacket = CommanderPacket(0F, -1F, 0F, 14000u)
@@ -133,4 +184,125 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
         }
     }
+
+    private fun driveCar(forward: Float, side: Float) {
+        val cp = CommanderPacket(side, forward, 0f, 14000.toShort().toUShort())
+        mPodUsbSerialService?.usbSendData(cp.toByteArray())
+    }
+
+    inner class PreviewSurfaceView {
+        private var left: Int = 0
+        private var top: Int = 0
+        private var right: Int = 0
+        private var bottom: Int = 0
+        private var defaultImageWidth: Int = 0
+        private var defaultImageHeight: Int = 0
+        fun setPreviewSurfaceView(image: Bitmap) {
+            val holder = previewSV?.holder
+            val surfaceCanvas = holder?.lockCanvas()
+            surfaceCanvas?.let { canvas ->
+                if (defaultImageWidth != image.width || defaultImageHeight != image.height) {
+                    defaultImageWidth = image.width
+                    defaultImageHeight = image.height
+                    val screenWidth: Int
+                    val screenHeight: Int
+
+                    if (canvas.height > canvas.width) {
+                        val ratio = image.height.toFloat() / image.width
+                        screenWidth = canvas.width
+                        left = 0
+                        screenHeight = (canvas.width * ratio).toInt()
+                        top = (canvas.height - screenHeight) / 2
+                    } else {
+                        val ratio = image.width.toFloat() / image.height
+                        screenHeight = canvas.height
+                        top = 0
+                        screenWidth = (canvas.height * ratio).toInt()
+                        left = (canvas.width - screenWidth) / 2
+                    }
+                    right = left + screenWidth
+                    bottom = top + screenHeight
+                }
+
+                canvas.drawBitmap(
+                    image, Rect(0, 0, image.width, image.height),
+                    Rect(left, top, right, bottom), null)
+                holder.unlockCanvasAndPost(canvas)
+            }
+        }
+    }
+
+    /** request permission */
+    private fun requestPermission() {
+        /** request camera permission */
+        val requestPermissionLauncher =
+            registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
+                if (isGranted) {
+                } else {
+                    Toast.makeText(this, "Request camera permission failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED)
+            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+
+    private fun runObjectDetection(bitmap: Bitmap) {
+        // Get pre-processed img in right form
+        val processedImg = objectDetectionHelper.preProcessInputImage(bitmap)
+        val image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
+
+        //set up local model with custom image classification
+        val localModel = LocalModel.Builder()
+            .setAssetFilePath("lite-model_aiy_vision_classifier_birds_V1_3.tflite")
+            .build()
+
+        // Step 2: Initialize the detector object
+        val options = CustomObjectDetectorOptions.Builder(localModel)
+            .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
+            .enableClassification()
+            .enableMultipleObjects()
+            .setClassificationConfidenceThreshold(0.5f)
+            .build()
+        val detector = ObjectDetection.getClient(options)
+
+        // Step 3: Feed given image to the detector
+        if (image != null) {
+            detector.process(image).addOnSuccessListener { results ->
+
+                val detectedObjects: MutableList<BoxWithText> = mutableListOf()
+
+                for (result in results) {
+                    if (result.labels.isNotEmpty() && result.labels.first().text == "Branta canadensis") {
+                        val firstLabel = result.labels.first()
+                        val text = "Goose, ${firstLabel.confidence.times(100).toInt()}%"
+                        detectedObjects.add(BoxWithText(result.boundingBox, text))
+                    }
+                }
+
+                // Draw the detection result on the input bitmap
+                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
+
+                val pair = myDriver.drive(detectedObjects)
+                Log.d(TAG,pair.toString())
+                /*
+                if (forward != null && side != null) {
+                    driveCar(forward, side)
+                }
+                */
+
+                val rotationMatrix = Matrix()
+                rotationMatrix.postRotate(90F)
+                val rotatedImage = Bitmap.createBitmap(visualizedResult,0,0,visualizedResult.width, visualizedResult.height, rotationMatrix, true)
+                psv.setPreviewSurfaceView(rotatedImage)
+            }
+        }
+    }
 }
+/**
+ * A general-purpose data class to store detection result for visualization
+ */
+data class BoxWithText(val box: Rect, val text: String)

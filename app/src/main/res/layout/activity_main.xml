@@ -6,39 +6,52 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <SurfaceView
+        android:id="@+id/sv_preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0" />
+
     <TextView
         android:id="@+id/tv_devName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="30dp"
+        android:text="@string/str_devName"
         android:textColor="@color/purple_500"
         android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_marginTop="30dp"
-        android:text="@string/str_devName"/>
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tv_devVendorId"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_below="@+id/tv_devName"
         android:layout_marginHorizontal="12dp"
+        android:text="@string/str_devVendorId"
         android:textColor="@color/purple_500"
         android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_below="@+id/tv_devName"
-        android:text="@string/str_devVendorId"/>
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tv_devProductId"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_below="@+id/tv_devName"
         android:layout_marginHorizontal="12dp"
+        android:layout_toEndOf="@+id/tv_devVendorId"
+        android:text="@string/str_devProductId"
         android:textColor="@color/purple_500"
         android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_below="@+id/tv_devName"
-        android:layout_toEndOf="@+id/tv_devVendorId"
-        android:text="@string/str_devProductId"/>
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tv_rxMsg"
@@ -88,38 +101,42 @@
         android:layout_centerHorizontal="true"
         android:layout_above="@+id/tv_rxMsg"
         android:id="@+id/relyt_btn_ctrl">
+
         <Button
             android:id="@+id/btn_front"
             android:layout_width="70dp"
             android:layout_height="75dp"
             android:layout_centerHorizontal="true"
-            android:textSize="40sp"
-            android:text="F" />
+            android:text="F"
+            android:textSize="40sp" />
+
         <Button
             android:id="@+id/btn_back"
             android:layout_width="70dp"
             android:layout_height="75dp"
-            android:textSize="40sp"
             android:layout_below="@+id/btn_front"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="80dp"
-            android:text="B" />
+            android:text="B"
+            android:textSize="40sp" />
+
         <Button
             android:id="@+id/btn_left"
             android:layout_width="70dp"
             android:layout_height="75dp"
             android:layout_centerVertical="true"
             android:layout_toStartOf="@+id/btn_front"
-            android:textSize="40sp"
-            android:text="L" />
+            android:text="L"
+            android:textSize="40sp" />
+
         <Button
             android:id="@+id/btn_right"
             android:layout_width="70dp"
             android:layout_height="75dp"
             android:layout_centerVertical="true"
             android:layout_toEndOf="@+id/btn_front"
-            android:textSize="40sp"
-            android:text="R" />
+            android:text="R"
+            android:textSize="40sp" />
     </RelativeLayout>
 
 </RelativeLayout>

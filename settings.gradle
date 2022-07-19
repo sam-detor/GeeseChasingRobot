@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "STM32UsbSerial"
 include ':app'
+include ':renderscript-toolkit'
