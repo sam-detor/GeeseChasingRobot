@@ -7,16 +7,19 @@ import com.example.stm32usbserial.BoxWithText
 import com.example.stm32usbserial.CommanderPacket
 
 class Driver internal constructor() {
-    private val P = 0.01//0.5
-    private val I = 0.0
-    private val D = 0.0
-    private val sizeSetpoint = 200000.0 //135594.0//
-    private val centerSetpoint = 340.0
+    private val SIDE_P = 0.1//0.5
+    private val SIDE_I = 0.0
+    private val SIDE_D = 0.0
+
+    private val FORWARD_P = 0.000001//0.00000005//0.5
+
+    private val sizeSetpoint = 100000.0 //135594.0//
+    private val centerSetpoint = 320.0
     private var frames_empty = 4
-    private val forwardPID = MiniPID(P, I, D)
-    private val sidePID = MiniPID(P, I, D)
-    private var prevSide: Float = 0f
-    private var prevForward:Float = 0f
+    private val forwardPID = MiniPID(FORWARD_P, 0.000000001, 0.0)
+    private val sidePID = MiniPID(SIDE_P, SIDE_I, SIDE_D)
+    private var prevSide: Float? = 0f
+    private var prevForward:Float? = 0f
     private val TAG = "MLKit-ODT"
 
 
@@ -32,9 +35,21 @@ class Driver internal constructor() {
         frames_empty = 0
         val center = calculateCenter(detectedObjects)
         val size = calculateSize(detectedObjects).toDouble()
-        Log.d(TAG, size.toString())
-        prevSide = sidePID.getOutput(center).toFloat()
+        Log.d(TAG, center.toString())
+        prevSide = -sidePID.getOutput(center).toFloat()
         prevForward = forwardPID.getOutput(size).toFloat()
+
+        if (prevForward!! <= 0.005) {
+            prevForward = null
+            prevSide = null
+            return Pair(null,null)
+        }
+
+        if(prevSide!! <= 0.2 && prevSide!! >= -0.2)
+        {
+            prevSide = 0f
+        }
+
         return Pair(prevForward,prevSide)
 
     }
@@ -61,8 +76,9 @@ class Driver internal constructor() {
         forwardPID.setSetpoint(sizeSetpoint)
 
         sidePID.setOutputLimits(-1.0,1.0)
-        forwardPID.setOutputLimits(-1.0,1.0)
-        forwardPID.setDirection(true)
+        forwardPID.setOutputLimits(0.0,1.0)
+        //sidePID.setDirection(true)
+        sidePID.setOutputFilter(50.0)
 
     }
 }

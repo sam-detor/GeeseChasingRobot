@@ -14,7 +14,7 @@ class ObjectDetectionHelper {
 
         val size = if (height > width) width else height
         val imageProcessor = ImageProcessor.Builder().apply {
-            add(Rot90Op())
+            add(Rot90Op(3))
             //add(ResizeWithCropOrPadOp(size, size))
             //add(ResizeOp(width, height, ResizeOp.ResizeMethod.BILINEAR))
         }.build()

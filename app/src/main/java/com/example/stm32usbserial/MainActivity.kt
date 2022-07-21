@@ -186,7 +186,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun driveCar(forward: Float, side: Float) {
-        val cp = CommanderPacket(side, forward, 0f, 14000.toShort().toUShort())
+        val cp = CommanderPacket(side, 0f, 0F, 14000.toShort().toUShort())
         mPodUsbSerialService?.usbSendData(cp.toByteArray())
     }
 
@@ -287,15 +287,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
 
                 val pair = myDriver.drive(detectedObjects)
-                Log.d(TAG,pair.toString())
-                /*
+
+                val (forward, side) = pair
                 if (forward != null && side != null) {
                     driveCar(forward, side)
+                    Log.d(TAG,pair.toString())
                 }
-                */
+
 
                 val rotationMatrix = Matrix()
-                rotationMatrix.postRotate(90F)
+                rotationMatrix.postRotate(270F)
                 val rotatedImage = Bitmap.createBitmap(visualizedResult,0,0,visualizedResult.width, visualizedResult.height, rotationMatrix, true)
                 psv.setPreviewSurfaceView(rotatedImage)
             }
