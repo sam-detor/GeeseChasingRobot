@@ -276,17 +276,27 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 val detectedObjects: MutableList<BoxWithText> = mutableListOf()
 
                 for (result in results) {
-                    if (result.labels.isNotEmpty() && result.labels.first().text == "Branta canadensis") {
+                    if (result.labels.isNotEmpty()) {
+                        var name = ""
+                        if (result.labels.first().text == "Branta canadensis")
+                        {
+                            name = "Goose"
+                        }
+                        else
+                        {
+                            name = result.labels.first().text
+                        }
                         val firstLabel = result.labels.first()
-                        val text = "Goose, ${firstLabel.confidence.times(100).toInt()}%"
+                        val text = "${name}, ${firstLabel.confidence.times(100).toInt()}%"
                         detectedObjects.add(BoxWithText(result.boundingBox, text))
                     }
                 }
 
                 // Draw the detection result on the input bitmap
                 val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
+                val objectsForDriving = objectDetectionHelper.filterBoxes(detectedObjects)
 
-                val pair = myDriver.drive(detectedObjects)
+                val pair = myDriver.drive(objectsForDriving)
 
                 val (forward, rot) = pair
                 if (forward != null && rot != null && rot != 0f) {

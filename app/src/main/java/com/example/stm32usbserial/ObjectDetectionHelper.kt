@@ -38,6 +38,9 @@ class ObjectDetectionHelper {
         detectionResults.forEach {
             // draw bounding box
             pen.color = Color.RED
+            if(it.text.startsWith("Goose")){
+                pen.color = Color.BLUE
+            }
             pen.strokeWidth = 8F
             pen.style = Paint.Style.STROKE
             val box = it.box
@@ -65,5 +68,21 @@ class ObjectDetectionHelper {
             )
         }
         return outputBitmap
+    }
+
+    //this method determines what box the robot should try to drive towards
+    fun filterBoxes(detectionResults: List<BoxWithText>):List<BoxWithText>  {
+            //priority list for which box to choose
+            //1. goose with highest label confidence
+            //2. potentially other birds
+            //3. smallest box (within reason)
+        var myList: MutableList<BoxWithText> = mutableListOf()
+        for (result in detectionResults) {
+            if(result.text.startsWith("Goose"))
+            {
+                myList.add(result)
+            }
+        }
+        return myList;
     }
 }
