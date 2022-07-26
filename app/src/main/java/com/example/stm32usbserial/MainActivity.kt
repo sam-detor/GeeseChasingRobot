@@ -147,7 +147,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 mEtTxMsg?.setText("")
             }
             R.id.btn_front -> {
-                driveCar(1f,0f);
+                driveCar(1f,0f, 0f);
                /* val cp: CommanderPacket = CommanderPacket(0F, 1F, 0F, 14000u)
 //                val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.23F)
                 mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
@@ -185,8 +185,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    private fun driveCar(forward: Float, side: Float) {
-        val cp = CommanderPacket(side, 0f, 0F, 14000.toShort().toUShort())
+    private fun driveCar(forward: Float, side: Float, rot: Float) {
+        val cp = CommanderPacket(side, forward, rot, 14000.toShort().toUShort())
         mPodUsbSerialService?.usbSendData(cp.toByteArray())
     }
 
@@ -288,9 +288,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
                 val pair = myDriver.drive(detectedObjects)
 
-                val (forward, side) = pair
-                if (forward != null && side != null) {
-                    driveCar(forward, side)
+                val (forward, rot) = pair
+                if (forward != null && rot != null && rot != 0f) {
+                    driveCar(0f, 0f,rot)
                     Log.d(TAG,pair.toString())
                 }
 

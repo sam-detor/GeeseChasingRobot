@@ -7,7 +7,7 @@ import com.example.stm32usbserial.BoxWithText
 import com.example.stm32usbserial.CommanderPacket
 
 class Driver internal constructor() {
-    private val SIDE_P = 0.1//0.5
+    private val SIDE_P = 0.001//0.5
     private val SIDE_I = 0.0
     private val SIDE_D = 0.0
 
@@ -36,7 +36,7 @@ class Driver internal constructor() {
         val center = calculateCenter(detectedObjects)
         val size = calculateSize(detectedObjects).toDouble()
         Log.d(TAG, center.toString())
-        prevSide = -sidePID.getOutput(center).toFloat()
+        prevSide = sidePID.getOutput(center).toFloat()
         prevForward = forwardPID.getOutput(size).toFloat()
 
         if (prevForward!! <= 0.005) {
