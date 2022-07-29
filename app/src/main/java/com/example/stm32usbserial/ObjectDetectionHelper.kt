@@ -76,11 +76,20 @@ class ObjectDetectionHelper {
             //1. goose with highest label confidence
             //2. potentially other birds
             //3. smallest box (within reason)
+            //SMALLEST GOOSE box is usually the most accurate
+
+        var size = 2000000
         var myList: MutableList<BoxWithText> = mutableListOf()
         for (result in detectionResults) {
             if(result.text.startsWith("Goose"))
             {
-                myList.add(result)
+                var indiv_size = result.box.width() * result.box.height()
+                if(indiv_size < size)
+                {
+                    myList = mutableListOf(result)
+                    size = indiv_size
+                }
+
             }
         }
         return myList;

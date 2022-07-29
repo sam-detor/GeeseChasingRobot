@@ -25,11 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.tensorflow.lite.DataType
-import org.tensorflow.lite.support.image.ImageProcessor
-import org.tensorflow.lite.support.image.TensorImage
-import org.tensorflow.lite.support.image.ops.Rot90Op
-import java.nio.ByteBuffer
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
@@ -158,12 +153,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
             }
             R.id.btn_left -> {
-                val cp: CommanderPacket = CommanderPacket(1F, 0F, 0F, 14000u)
-                mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                //val cp: CommanderPacket = CommanderPacket(1F, 0F, 0F, 14000u)
+                //mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                driveCar(0f,0f, -0.7f);
             }
             R.id.btn_right -> {
-                val cp: CommanderPacket = CommanderPacket(-1F, 0F, 0F, 14000u)
-                mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                //val cp: CommanderPacket = CommanderPacket(-1F, 0F, 0F, 14000u)
+                //mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                driveCar(0f,0f, 1f);
             }
         }
     }
@@ -265,7 +262,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
             .enableClassification()
             .enableMultipleObjects()
-            .setClassificationConfidenceThreshold(0.5f)
+            .setClassificationConfidenceThreshold(0.6f)
             .build()
         val detector = ObjectDetection.getClient(options)
 
@@ -293,16 +290,23 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
 
                 // Draw the detection result on the input bitmap
-                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
                 val objectsForDriving = objectDetectionHelper.filterBoxes(detectedObjects)
+                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, objectsForDriving)
+
 
                 val pair = myDriver.drive(objectsForDriving)
 
                 val (forward, rot) = pair
-                if (forward != null && rot != null && rot != 0f) {
-                    driveCar(0f, 0f,rot)
-                    Log.d(TAG,pair.toString())
+                if (forward != null)
+                {
+                    driveCar(forward, 0f,0f)
                 }
+                if (rot != null)
+                {
+                    driveCar(0f, 0f,rot)
+                }
+                    //Log.d(TAG,rot.toString())
+                    Log.d(TAG,pair.toString())
 
 
                 val rotationMatrix = Matrix()
