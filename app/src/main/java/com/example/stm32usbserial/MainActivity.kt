@@ -291,7 +291,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
                 // Draw the detection result on the input bitmap
                 val objectsForDriving = objectDetectionHelper.filterBoxes(detectedObjects)
-                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, objectsForDriving)
+                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
 
 
                 val pair = myDriver.drive(objectsForDriving)
@@ -306,7 +306,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     driveCar(0f, 0f,rot)
                 }
                     //Log.d(TAG,rot.toString())
-                    Log.d(TAG,pair.toString())
+                    //Log.d(TAG,pair.toString())
 
 
                 val rotationMatrix = Matrix()
