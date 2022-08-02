@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private val objectDetectionHelper = ObjectDetectionHelper()
     private val myDriver = Driver()
+    private var BLIND = false
 
     //UI Stuff
     private var mTvDevName: TextView? = null
@@ -248,9 +249,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
 
     private fun runObjectDetection(bitmap: Bitmap) {
+
         // Get pre-processed img in right form
         val processedImg = objectDetectionHelper.preProcessInputImage(bitmap)
-        val image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
+        var image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
+
+        if (BLIND) {
+            val my_bitmap = Bitmap.createBitmap(image!!.width, image!!.height, Bitmap.Config.ARGB_8888)
+            image = InputImage.fromBitmap(my_bitmap, 0)
+            BLIND = false
+        }
 
         //set up local model with custom image classification
         val localModel = LocalModel.Builder()
@@ -290,21 +298,27 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
 
                 // Draw the detection result on the input bitmap
-                val objectsForDriving = objectDetectionHelper.filterBoxes(detectedObjects)
-                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
+                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg!!.bitmap, detectedObjects)
 
 
-                val pair = myDriver.drive(objectsForDriving)
+                val pair = myDriver.drive(detectedObjects)
 
                 val (forward, rot) = pair
-                if (forward != null)
+                if(forward == null || rot == null)
                 {
-                    driveCar(forward, 0f,0f)
+                    BLIND = true
                 }
-                if (rot != null)
-                {
-                    driveCar(0f, 0f,rot)
+                else{
+                    if (forward != 0f)
+                    {
+                        driveCar(forward, 0f,0f)
+                    }
+                    if (rot != 0f)
+                    {
+                        driveCar(0f, 0f,rot)
+                    }
                 }
+
                     //Log.d(TAG,rot.toString())
                     //Log.d(TAG,pair.toString())
 

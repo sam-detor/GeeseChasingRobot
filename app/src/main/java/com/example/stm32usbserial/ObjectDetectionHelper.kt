@@ -70,28 +70,4 @@ class ObjectDetectionHelper {
         return outputBitmap
     }
 
-    //this method determines what box the robot should try to drive towards
-    fun filterBoxes(detectionResults: List<BoxWithText>):List<BoxWithText>  {
-            //priority list for which box to choose
-            //1. goose with highest label confidence
-            //2. potentially other birds
-            //3. smallest box (within reason)
-            //SMALLEST GOOSE box is usually the most accurate
-
-        var size = 2000000
-        var myList: MutableList<BoxWithText> = mutableListOf()
-        for (result in detectionResults) {
-            if(result.text.startsWith("Goose"))
-            {
-                var indiv_size = result.box.width() * result.box.height()
-                if(indiv_size < size)
-                {
-                    myList = mutableListOf(result)
-                    size = indiv_size
-                }
-
-            }
-        }
-        return myList;
-    }
 }
