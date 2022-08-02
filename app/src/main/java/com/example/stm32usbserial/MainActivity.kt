@@ -34,9 +34,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private val job = SupervisorJob()
     private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
-    private val TAG = "MLKit-ODT"
 
+    //ML stuff
     private val objectDetectionHelper = ObjectDetectionHelper()
+    private val TAG = "MLKit-ODT"
+    private var classification_enabled = true
+
+    //Driving stuff
     private val myDriver = Driver()
 
     //UI Stuff
@@ -263,8 +267,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             .enableClassification()
             .enableMultipleObjects()
             .setClassificationConfidenceThreshold(0.6f)
-            .build()
-        val detector = ObjectDetection.getClient(options)
+
+        if (classification_enabled) {
+            options.enableClassification()
+        }
+
+        val detector = ObjectDetection.getClient(options.build())
 
         // Step 3: Feed given image to the detector
         if (image != null) {
@@ -273,19 +281,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 val detectedObjects: MutableList<BoxWithText> = mutableListOf()
 
                 for (result in results) {
-                    if (result.labels.isNotEmpty()) {
-                        var name = ""
-                        if (result.labels.first().text == "Branta canadensis")
-                        {
-                            name = "Goose"
+                    if (classification_enabled) {
+                        if (result.labels.isNotEmpty()) {
+                            var name = ""
+                            if (result.labels.first().text == "Branta canadensis") {
+                                name = "Goose"
+                            } else {
+                                name = result.labels.first().text
+                            }
+                            val firstLabel = result.labels.first()
+                            val text = "${name}, ${firstLabel.confidence.times(100).toInt()}%"
+                            detectedObjects.add(BoxWithText(result.boundingBox, text))
                         }
-                        else
-                        {
-                            name = result.labels.first().text
-                        }
-                        val firstLabel = result.labels.first()
-                        val text = "${name}, ${firstLabel.confidence.times(100).toInt()}%"
-                        detectedObjects.add(BoxWithText(result.boundingBox, text))
+                    }
+                    else {
+                        detectedObjects.add(BoxWithText(result.boundingBox, result.trackingId.toString()))
                     }
                 }
 

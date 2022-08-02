@@ -7,6 +7,8 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
 
 class ObjectDetectionHelper {
+    private var trackingID = 0
+    private var useTrackingID = false
 
     fun preProcessInputImage(bitmap: Bitmap): TensorImage? {
         val width: Int = bitmap.width
@@ -78,6 +80,10 @@ class ObjectDetectionHelper {
             //3. smallest box (within reason)
             //SMALLEST GOOSE box is usually the most accurate
 
+
+        if (useTrackingID) {
+            var tracked_box = detectionResults.find {it.text.toInt() == trackingID }
+        }
         var size = 2000000
         var myList: MutableList<BoxWithText> = mutableListOf()
         for (result in detectionResults) {
