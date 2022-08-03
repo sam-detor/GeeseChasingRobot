@@ -12,6 +12,7 @@ class Driver internal constructor() {
     */
     private val GOOSE_LEN_INCHES = 27
     private val SMALL_THRESHOLD = 17000
+    private var outOfBounds = false
 
     //INSIDE
     //private val FORWARD_P = 0.00001//0.00000005//0.5
@@ -245,6 +246,16 @@ class Driver internal constructor() {
         //Log.d(TAG, pair.toString())
         return pair
 
+    }
+
+    fun stopBot()
+    {
+        outOfBounds = true
+    }
+
+    fun startBot()
+    {
+        outOfBounds = false
     }
 
     /*//this method determines what box the robot should try to drive towards

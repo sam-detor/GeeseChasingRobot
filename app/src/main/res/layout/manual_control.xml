@@ -139,4 +139,14 @@
             android:textSize="40sp" />
     </RelativeLayout>
 
+    <Button
+        android:id="@+id/man_ret"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="181dp"
+        android:text="Start Screen" />
+
 </RelativeLayout>

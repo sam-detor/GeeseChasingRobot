@@ -5,8 +5,11 @@ import android.annotation.SuppressLint
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import android.view.SurfaceView
 import android.view.View
@@ -16,7 +19,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.*
 import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
@@ -39,6 +44,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val objectDetectionHelper = ObjectDetectionHelper()
     private val myDriver = Driver()
     private var BLIND = false
+    private var runObjectDetection = false
 
     //UI Stuff
     private var mTvDevName: TextView? = null
@@ -56,9 +62,27 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private var mBtnL: Button? = null
     private var mBtnR: Button? = null
 
+    //GPS Stuff
+    var fusedLocationProviderClient: FusedLocationProviderClient? = null
+    private lateinit var locationRequest: LocationRequest
+    val DEFAULT_UPDATE_INTERVAL: Long = 30
+    val FAST_UPDATE_INTERVAL:Long = 5
+    val PERMISSION_LOCATION = 99
+    var geofenceButton: Button? = null
+    var takeDataButton: Button? = null
+    private lateinit var locationCallback: LocationCallback
+    private var latCoordinateList: MutableList<Float> = mutableListOf()
+    private var longCoordinateList: MutableList<Float> = mutableListOf()
+    private var takeData = false
+    private var myFence: Geofence? = null
+    private var tv_lat: TextView? = null
+    private var tv_long: TextView? = null
+    private var wasOutOfBounds = false
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.startscreen)
 
         //Camera UI
         previewSV = findViewById(R.id.sv_preview)
@@ -87,6 +111,68 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         mBtnB?.setOnClickListener(this)
         mBtnL?.setOnClickListener(this)
         mBtnR?.setOnClickListener(this)
+
+        //deal with buttons
+
+
+
+        //GPS stuff
+        locationRequest = LocationRequest.create()
+        locationRequest?.interval = 1000 * FAST_UPDATE_INTERVAL
+        locationRequest?.fastestInterval = 1000 * FAST_UPDATE_INTERVAL
+        locationRequest?.priority = Priority.PRIORITY_HIGH_ACCURACY
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                //Log.d("BUTTON", "hi2")
+                p0 ?: return
+                for (location in p0.locations){
+                    // Update UI with location data
+                    //Log.d("RESULT", "hi")
+                    UpdateUI(location)
+                    if (takeData) {
+                        latCoordinateList.add(location.latitude.toFloat())
+                        longCoordinateList.add(location.longitude.toFloat())
+                        takeData = false
+                        Toast.makeText(applicationContext, "Data Taken", Toast.LENGTH_SHORT).show()
+                    }
+                    else {
+                        Toast.makeText(applicationContext, "Callback", Toast.LENGTH_SHORT).show()
+                    }
+
+                    if(myFence != null) {
+                        val infence: Boolean? = myFence?.insideFence(location)
+                        if(infence == false){
+                            myDriver.stopBot()
+                            wasOutOfBounds = true
+                            Toast.makeText(applicationContext, "Out of Bounds", Toast.LENGTH_SHORT).show()
+                        }
+                        else if (wasOutOfBounds){
+                            myDriver.startBot()
+                            Toast.makeText(applicationContext, "In Bounds", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+        startLocationCallbacks()
+
+        takeDataButton = findViewById(R.id.gps_button)
+        takeDataButton?.setOnClickListener{
+            takeData()
+        }
+
+        var clearDataButton: Button = findViewById(R.id.clear_data_button)
+        clearDataButton?.setOnClickListener{
+            clearData()
+        }
+
+        var startButton: Button = findViewById(R.id.chase_geese_button)
+        startButton?.setOnClickListener{
+            startGeofence()
+            setContentView(R.layout.manual_control)
+            runObjectDetection = true
+        }
     }
 
     override fun onStart() {
@@ -95,9 +181,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         cameraSource = CameraSource(this, object: CameraSource.CameraSourceListener {
             override fun processImage(image: Bitmap) {
                 //Log.d(TAG, "hi")
-                runObjectDetection(image)
+                if(runObjectDetection)
+                {
+                    runObjectDetection(image)
+                }
                 //psv.setPreviewSurfaceView(image)
-
             }
             override fun onFPSListener(fps: Int) {}
         })
@@ -331,6 +419,111 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 val rotatedImage = Bitmap.createBitmap(visualizedResult,0,0,visualizedResult.width, visualizedResult.height, rotationMatrix, true)
                 psv.setPreviewSurfaceView(rotatedImage)
             }
+        }
+    }
+
+    //GPS Methods
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLocationCallbacks()
+        }
+        else {
+            Toast.makeText(this, "Permissions not gotten", Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+    fun updateGPS() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+        {
+            fusedLocationProviderClient?.lastLocation?.addOnSuccessListener {
+                UpdateUI(it)
+            }
+            /*fusedLocationProviderClient?.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, object : CancellationToken() {
+                            override fun onCanceledRequested(p0: OnTokenCanceledListener) = CancellationTokenSource().token
+
+                            override fun isCancellationRequested() = false
+                        })
+                        ?.addOnSuccessListener { location: Location? ->
+                            if (location == null)
+                                Toast.makeText(this, "Cannot get location.", Toast.LENGTH_SHORT).show()
+                            else {
+                                UpdateUI(location)
+                            }
+
+                        }*/
+
+        }
+        else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val permsArray = arrayOf<String>("${Manifest.permission.ACCESS_FINE_LOCATION}", "${Manifest.permission.ACCESS_COARSE_LOCATION}")
+                requestPermissions(permsArray,PERMISSION_LOCATION)
+            }
+        }
+    }
+
+    fun UpdateUI(location: Location) {
+        tv_lat?.text = location.latitude.toString()
+        tv_long?.text = location.longitude.toString()
+
+    }
+
+    fun startLocationCallbacks() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+        {
+            //fusedLocationProviderClient?.lastLocation?.addOnSuccessListener {
+            //UpdateUI(it)
+            //}
+
+            updateGPS()
+            fusedLocationProviderClient?.requestLocationUpdates(locationRequest,
+                locationCallback,
+                Looper.getMainLooper())
+        }
+        else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val permsArray = arrayOf<String>("${Manifest.permission.ACCESS_FINE_LOCATION}", "${Manifest.permission.ACCESS_COARSE_LOCATION}")
+                requestPermissions(permsArray,PERMISSION_LOCATION)
+            }
+        }
+    }
+
+    private fun takeData() {
+        takeData = true
+    }
+
+    private fun clearData() {
+        latCoordinateList = mutableListOf()
+        longCoordinateList = mutableListOf()
+    }
+
+    private fun startGeofence() {
+        val max_lat: Float = latCoordinateList.maxOrNull() ?: 0f
+        val min_lat: Float = latCoordinateList.minOrNull() ?: 0f
+        val max_long: Float = longCoordinateList.maxOrNull() ?: 0f
+        val min_long: Float = longCoordinateList.minOrNull() ?: 0f
+        if(max_lat != 0f && min_lat != 0f && max_long != 0f && min_long != 0f) {
+            myFence = Geofence(max_lat, min_lat, max_long, min_long)
+        }
+
+    }
+
+    class Geofence( val max_lat: Float, val min_lat: Float, val max_long: Float, val min_long: Float) {
+        fun insideFence(location: Location): Boolean {
+            val lat = location.latitude.toFloat()
+            val long = location.longitude.toFloat()
+            if (lat > min_lat && lat < max_lat && long > min_long && long < max_long)
+            {
+                return true
+            }
+            return false
         }
     }
 }
