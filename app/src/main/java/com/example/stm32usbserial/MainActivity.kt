@@ -253,8 +253,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // Get pre-processed img in right form
         val processedImg = objectDetectionHelper.preProcessInputImage(bitmap)
         var image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
-
         if (BLIND) {
+
+
             val my_bitmap = Bitmap.createBitmap(image!!.width, image!!.height, Bitmap.Config.ARGB_8888)
             image = InputImage.fromBitmap(my_bitmap, 0)
             BLIND = false
@@ -309,8 +310,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     BLIND = true
                 }
                 else{
+                    Log.d(TAG, pair.toString())
                     if (forward != 0f)
                     {
+
                         driveCar(forward, 0f,0f)
                     }
                     if (rot != 0f)
