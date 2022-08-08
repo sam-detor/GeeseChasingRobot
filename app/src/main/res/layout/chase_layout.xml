@@ -19,29 +19,49 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0" />
 
+
     <Button
-        android:id="@+id/chase_ret"
+        android:id="@+id/take_data"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="26dp"
         android:rotation="0"
-        android:text="Start Screen"
-        app:layout_constraintEnd_toStartOf="@+id/button2"
+        android:text="Take Data"
+        app:layout_constraintEnd_toStartOf="@+id/clear_data"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/button2"
+        android:id="@+id/clear_data"
         android:layout_width="0dp"
         android:layout_height="50dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="114dp"
-        android:text="Connect"
+        android:text="Clear Data"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/chase_ret"
+        app:layout_constraintStart_toEndOf="@+id/take_data"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/chase_geese"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:text="Chase Geese"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/clear_data" />
+
+    <Button
+        android:id="@+id/btn_cnt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="13dp"
+        android:text="Connect"
+        app:layout_constraintBaseline_toBaselineOf="@+id/chase_geese"
+        app:layout_constraintStart_toStartOf="@+id/clear_data" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 

@@ -1,5 +1,10 @@
 package com.example.stm32usbserial
 
+/**
+ * Enum class that handles the port numbers
+ * Source: https://github.com/Leonana69/STM32UsbSerial/blob/master/app/src/main/java/com/example/stm32usbserial/CrtpPort.kt
+ * @author Guojun Chen
+ */
 enum class CrtpPort(port: Int) {
     CONSOLE(0),
     PARAMETERS(2),

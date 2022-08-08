@@ -16,6 +16,11 @@ import android.widget.Toast
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface
 
+/**
+ * Class that manages the USB connection between the STM32 board and the phone
+ * Source: https://github.com/Leonana69/STM32UsbSerial/blob/master/app/src/main/java/com/example/stm32usbserial/PodUsbSerial.kt
+ * @author Guojun Chen
+ */
 class PodUsbSerialService: Service() {
     var isConnected: Boolean = false
     var mRxMsg: String? = null

@@ -3,6 +3,11 @@ package com.example.stm32usbserial
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+/**
+ * Class that's responsible for the packet format used when the data is sent over usb to the STM32 board
+ * Source: https://github.com/Leonana69/STM32UsbSerial/blob/master/app/src/main/java/com/example/stm32usbserial/CrtpPacket.kt
+ * @author Guojun Chen
+ */
 open class CrtpPacket {
     private var mPacketHeader: Header? = null
     private var mPacketPayload: ByteArray? = null
