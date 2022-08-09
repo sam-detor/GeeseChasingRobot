@@ -1,5 +1,7 @@
 package com.example.stm32usbserial
 
+import kotlin.math.absoluteValue
+
 class Driver internal constructor() {
 
     //Helper class instances
@@ -17,8 +19,27 @@ class Driver internal constructor() {
     // Misc
     private var numRots = 0
 
-    fun drive(detectionResults: List<BoxWithText>):Pair<Float?, Float?> {
 
+    //constructor
+    init {
+        //set the setpoints of the PID loops
+        rotPID.setSetpoint(Constants.CENTER_SETPOINT)
+        forwardPID.setSetpoint(Constants.SIZE_SETPOINT)
+
+        //bound the output of the PID loops so the calculated speeds don't go out of the range
+        //of the commands that can be sent to the microcontroller
+        rotPID.setOutputLimits(-1.0,1.0)
+        forwardPID.setOutputLimits(0.0,1.0)
+    }
+
+    /**
+     * Takes in the list of BoxWithText objects created from the returned results of the running
+     * the object detection model. Returns a pair of speeds to send to the microcontroller dictating
+     * how fast the robot should drive forward and turn.
+     * Forward speed is bounded [0.0,1.0], Rotation speed is bounded [-1.0,1.0]
+     */
+    fun drive(detectionResults: List<BoxWithText>):Pair<Float, Float> { //Pair(forward, rotation)
+        //TO-DO GPS NOT IMPLEMENTED
         var gooseBox: BoxWithText? = null
         var currentBoxSize = 2000000
 
@@ -84,106 +105,121 @@ class Driver internal constructor() {
         return Pair(0f,0f)
     }
 
-    private fun chase(goose: BoxWithText): Pair<Float?, Float?> {
+    /**
+     * Given a BoxWithText object that has been classified as having a goose in it, return
+     * a pair with the forward and rotation speeds for the robot using PID loops. The rotation
+     * PID loop is based on the box's estimated horizontal distance from the center and the forward PID loop
+     * is based on box size.
+     *
+     *  Forward speed is bounded [0.0,1.0], Rotation speed is bounded [-1.0,1.0]
+     */
+    private fun chase(goose: BoxWithText): Pair<Float, Float> {
 
+        //updating the frames_empty variable for the state machine in drive
         if (myPastFrameStatistics.frames_empty > 0) {
             myPastFrameStatistics.frames_empty = 0
         }
 
+        //calculating the current values for the forward and rotation PID loops
         val center = calculateCenterDist(goose).toDouble()
         val size = calculateSize(goose).toDouble()
-        //Log.d(TAG, center.toString())
+
+        //Log the speeds for the 7 frame grace period after losing a goose object
         myPastSpeeds.prevForward = forwardPID.getOutput(size).toFloat()
         myPastSpeeds.prevRot = rotPID.getOutput(center).toFloat()
 
-        if (myPastSpeeds.prevRot!! <= currentProfile.rotThreshold && myPastSpeeds.prevRot!! >= -currentProfile.rotThreshold)
+        //if the absolute value of the speeds are smaller than the speed thresholds set for this
+        //terrain, then the speed is set to 0
+        if (myPastSpeeds.prevRot.absoluteValue <= currentProfile.rotThreshold)
         {
-            //Log.d(TAG,prevRot.toString())
             myPastSpeeds.prevRot = 0f
         }
-        if (myPastSpeeds.prevForward!! <= currentProfile.forwardThreshold)
+        if (myPastSpeeds.prevForward <= currentProfile.forwardThreshold)
         {
             myPastSpeeds.prevForward = 0f
         }
-        //Log.d(TAG, size.toString())
-        //Log.d(TAG, prevRot.toString())
+
         return Pair(myPastSpeeds.prevForward,myPastSpeeds.prevRot)
 
     }
-    /*
-    private fun calculateCenter(detectedObjects: List<BoxWithText>): Double {
-        var center = 0.0
-        for (i in detectedObjects.indices) {
-            center += detectedObjects[i].box.centerX()
-        }
-        center /= detectedObjects.size
-        return center
-    }
 
-    private fun calculateSize(detectedObjects: List<BoxWithText>): Int {
-        var sizes: MutableList<Int> = mutableListOf()
-        for (i in detectedObjects.indices) {
-            sizes.add(detectedObjects[i].box.width() * detectedObjects[i].box.height())
-        }
-        return sizes.maxOrNull() ?: 0
-    }
+    /**
+     * Uses the estimated length of a goose and the assumption that the width of the box is fitted
+     * well to the goose's body, it calculates approximately how far the box is (horizontally)
+     * from the center of the image in inches
      */
-
     private fun calculateCenterDist(detectedObject: BoxWithText): Float {
-        var pixels_to_inches: Float = Constants.GOOSE_LEN_INCHES/detectedObject.box.width().toFloat()
-        var center = (detectedObject.box.centerX().toFloat() - Constants.CENTER_IN_PIXELS) * pixels_to_inches
-        return center
+        //creates a conversion factor from inches to pixels
+        val pixelsToInches: Float =
+            Constants.GOOSE_LEN_INCHES / detectedObject.box.width().toFloat()
+
+        //converts the horizontal distance from the center from pixels to inches and returns it
+        return (detectedObject.box.centerX().toFloat() - Constants.CENTER_IN_PIXELS) * pixelsToInches
     }
 
+    /**
+     * calculates the size in pixels of the provided BoxWithText object
+     */
     private fun calculateSize(detectedObject: BoxWithText): Int {
         return detectedObject.box.width() * detectedObject.box.height()
     }
 
-    init {
-        rotPID.setSetpoint(Constants.CENTER_SETPOINT)
-        forwardPID.setSetpoint(Constants.SIZE_SETPOINT)
 
-        rotPID.setOutputLimits(-1.0,1.0)
-        forwardPID.setOutputLimits(0.0,1.0)
-    }
-
-
-
-    fun explore(smallBox: BoxWithText): Pair<Float, Float> {
+    /**
+     * Given a BoxWithText object, it will produce a pair of speeds (forward, rotational)
+     * that center the object in the image and approach it with a slow constant speed
+     */
+    private fun explore(smallBox: BoxWithText): Pair<Float, Float> {
         myPastFrameStatistics.frames_explore_empty = 0
+
+        //calculate the rotational speed
         val center = calculateCenterDist(smallBox)
         var prevExploreRot = rotPID.getOutput(center.toDouble()).toFloat()
-        if (prevExploreRot <= currentProfile.rotThreshold && prevExploreRot >= -currentProfile.rotThreshold)
-        {
+
+        //iof the rotation speed is too small, make it 0
+        if (prevExploreRot.absoluteValue <= currentProfile.rotThreshold) {
             prevExploreRot = 0f
         }
-        //prevExploreRot = 0f
+
+        //log the speeds for the 7 frame grace period
         myPastSpeeds.prevExploreForward = currentProfile.forwardThreshold + 0.3f
         myPastSpeeds.prevExploreRot = prevExploreRot
-        val pair = Pair( myPastSpeeds.prevExploreForward!!, myPastSpeeds.prevExploreRot!!)
-        //Log.d(TAG, pair.toString())
-        return pair
+
+        return Pair(myPastSpeeds.prevExploreForward, myPastSpeeds.prevExploreRot)
 
     }
 
+    /**
+     * sets the boolean outOfBounds to true, which prevents the drive method from producing non-zero
+     * values
+     */
     fun stopBot()
     {
         outOfBounds = true
     }
 
+    /**
+     * sets the boolean outOfBounds to false, which allows the drive method to produce non-zero
+     * values
+     */
     fun startBot()
     {
         outOfBounds = false
     }
 
 }
-// data class for storing drive params for different terrain
+
+/**
+ * data class for storing drive params for different terrain
+ */
 data class DriveProfile(val forwardKP: Double, val forwardKI: Double, val rotKP: Double, val forwardThreshold: Float, val rotThreshold: Float)
+
+/**
+ * data class for storing stats about objects in the previous frames
+ */
 data class PastFrameStatistics( var frames_empty: Int = 8, var frames_explore_empty: Int = 8, var frames_idle: Int = 0)
-data class PreviousSpeeds(var prevRot: Float? = 0f, var prevForward:Float? = 0f, var prevExploreRot: Float? = 0f, var prevExploreForward:Float? = 0f)
-enum class DriveState{
-    CHASE, GOOSE_BLIND, INTERPOLATE, EXPLORE_FORWARD, EXPLORE_ROTATE, BLIND,NONE, SMALL_BOX
-}
-enum class ProcessingState{
-    CHASE, GOOSE_BLIND, EXPLORE_FORWARD, EXPLORE_ROTATE, INTERPOLATE,
-}
+
+/**
+ * data class for storing information about the previous speed of the robot
+ */
+data class PreviousSpeeds(var prevRot: Float = 0f, var prevForward:Float = 0f, var prevExploreRot: Float = 0f, var prevExploreForward:Float = 0f)

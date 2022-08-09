@@ -16,12 +16,12 @@ class ObjectDetectionHelper {
      */
     fun preProcessInputImage(bitmap: Bitmap): TensorImage? {
 
-        //create the image processor to roate the image by 270°
+        //create the image processor to rotate the image by 270°
         val imageProcessor = ImageProcessor.Builder().apply {
             add(Rot90Op(3))
         }.build()
 
-        //create the "TensorImage" from the given bitmpa
+        //create the "TensorImage" from the given bitmap
         val tensorImage = TensorImage(DataType.UINT8)
         tensorImage.load(bitmap)
 
