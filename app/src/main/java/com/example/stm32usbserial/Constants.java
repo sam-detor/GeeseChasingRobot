@@ -3,7 +3,7 @@ package com.example.stm32usbserial;
 public class Constants {
 
     //GPS Constants
-    public static Long FAST_UPDATE_INTERVAL = 5l;
+    public static Long FAST_UPDATE_INTERVAL = 5L;
     public static int PERMISSION_LOCATION = 99;
 
     //PID constants (These are very dependent on the environment)
@@ -23,4 +23,7 @@ public class Constants {
 
     //Interpolation constants
     public static int MAX_BUFFER_FRAMES = 7;
+
+    //Debugging constants
+    public static String TAG = "MLKit-ODT";
 }

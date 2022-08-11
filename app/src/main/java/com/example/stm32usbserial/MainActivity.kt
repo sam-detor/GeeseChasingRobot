@@ -2,10 +2,10 @@
  * Main activity for Geese Chasing Robot App.
  * To use the app, first take GPS data at the 4 corners of the area you want the robot to stay in. Then hit "chase geese"
  * The robot will start obj detection, it will investigate identified objects that it thinks could be geese,
- * and then once it recoginizes a goose, it will chase it. If it can't find a goose in its line of sight after 200 frames, it will rotate
+ * and then once it recognizes a goose, it will chase it. If it can't find a goose in its line of sight after 200 frames, it will rotate
  * If the robot exits the GPS dictated bounds of the property, it will stop.
  *
- * This code heavily draws from Guojun Chen's STM32UsbSerial and Andriod-Camera repos:
+ * This code heavily draws from Guojun Chen's STM32UsbSerial and Android-Camera repos:
  * @see https://github.com/Leonana69/STM32UsbSerial
  * @see https://github.com/Leonana69/Android-Camera
  */
@@ -18,11 +18,9 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.*
 import android.location.Location
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.widget.*
@@ -50,9 +48,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val job = SupervisorJob()
     private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
 
-    //Debugging constants
-    private val TAG = "MLKit-ODT"
-
     //Helper class instances
     private val objectDetectionHelper = ObjectDetectionHelper()
     private val myDriver = Driver()
@@ -67,7 +62,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     //UI
     private var mBtnCnt: Button? = null
-    var takeDataButton: Button? = null
+    private var takeDataButton: Button? = null
 
     //GPS variables
     private var fusedLocationProviderClient: FusedLocationProviderClient? = null
@@ -92,27 +87,26 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // Button instantiations
         mBtnCnt = findViewById(R.id.btn_cnt)
         takeDataButton = findViewById(R.id.take_data)
-        var clearDataButton: Button = findViewById(R.id.clear_data)
-        var startButton: Button = findViewById(R.id.chase_geese)
+        val clearDataButton: Button = findViewById(R.id.clear_data)
+        val startButton: Button = findViewById(R.id.chase_geese)
 
         // set on-click listeners (see OnClick for more details)
         mBtnCnt?.setOnClickListener(this)
         takeDataButton?.setOnClickListener(this)
-        clearDataButton?.setOnClickListener(this)
-        startButton?.setOnClickListener(this)
+        clearDataButton.setOnClickListener(this)
+        startButton.setOnClickListener(this)
 
         //GPS initialization
 
         //Create location request and set callback speed and location accuracy
         locationRequest = LocationRequest.create()
-        locationRequest?.interval = 1000 * Constants.FAST_UPDATE_INTERVAL
-        locationRequest?.fastestInterval = 1000 * Constants.FAST_UPDATE_INTERVAL
-        locationRequest?.priority = Priority.PRIORITY_HIGH_ACCURACY
+        locationRequest.interval = 1000 * Constants.FAST_UPDATE_INTERVAL
+        locationRequest.fastestInterval = 1000 * Constants.FAST_UPDATE_INTERVAL
+        locationRequest.priority = Priority.PRIORITY_HIGH_ACCURACY
 
         //override location callback
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(p0: LocationResult) {
-                p0 ?: return
                 for (location in p0.locations){
 
                     //if the user is trying to take GPS data for the geofence, save the newest latitude/longitude in the global lists
@@ -160,14 +154,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     runObjectDetection(image)
                 }
                 else {
-                    //display raw camera feeed
+                    //display raw camera feed
                     psv.setPreviewSurfaceView(image)
                 }
             }
             override fun onFPSListener(fps: Int) {}
         })
 
-        //lauch the task that processes the video
+        //launch the task that processes the video
         mCoroutineScope.launch {
             cameraSource?.initCamera()
         }
@@ -301,7 +295,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         // Get pre-processed img in right form
         val processedImg = objectDetectionHelper.preProcessInputImage(bitmap)
-        var image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
+        val image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
 
         //set up local model with custom bird classification model
         val localModel = LocalModel.Builder()
@@ -327,7 +321,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 //create a list of BoxWithText objects that hold the obj detector/classifier results
                 for (result in results) {
                     if (result.labels.isNotEmpty()) {
-                        var name = ""
+                        var name: String
                         if (result.labels.first().text == "Branta canadensis")
                         {
                             name = "Goose"
@@ -343,18 +337,18 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
 
                 // Draw the detection result on the input bitmap
-                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg!!.bitmap, detectedObjects)
+                val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
 
                 // use the detected objects list to determine forward and rotation driving speeds
                 val pair = myDriver.drive(detectedObjects)
 
+                //Drive the car at the specified speeds if they are not zero
                 val (forward, rot) = pair
-                Log.d(TAG, pair.toString())
-                if (forward != 0f && forward != null)
+                if (forward != 0f)
                 {
                     driveCar(forward, 0f)
                 }
-                if (rot != 0f && rot !=null)
+                if (rot != 0f)
                 {
                     driveCar(0f,rot)
                 }
@@ -406,10 +400,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 Looper.getMainLooper())
         }
         else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val permsArray = arrayOf<String>("${Manifest.permission.ACCESS_FINE_LOCATION}", "${Manifest.permission.ACCESS_COARSE_LOCATION}")
-                requestPermissions(permsArray, Constants.PERMISSION_LOCATION)
-            }
+            val permsArray = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            requestPermissions(permsArray, Constants.PERMISSION_LOCATION)
         }
     }
 
@@ -433,13 +425,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      */
     private fun startGeofence() {
         //take the max and min lat and long listed, and create a geofence object with that info
-        val max_lat: Float = latCoordinateList.maxOrNull() ?: 0f //should make a way to load in preset values
-        val min_lat: Float = latCoordinateList.minOrNull() ?: 0f
-        val max_long: Float = longCoordinateList.maxOrNull() ?: 0f
-        val min_long: Float = longCoordinateList.minOrNull() ?: 0f
+        val maxLat: Float = latCoordinateList.maxOrNull() ?: 0f //should make a way to load in preset values
+        val minLat: Float = latCoordinateList.minOrNull() ?: 0f
+        val maxLong: Float = longCoordinateList.maxOrNull() ?: 0f
+        val minLong: Float = longCoordinateList.minOrNull() ?: 0f
 
-        if(max_lat != 0f && min_lat != 0f && max_long != 0f && min_long != 0f) {
-            myFence = Geofence(max_lat, min_lat, max_long, min_long)
+        if(maxLat != 0f && minLat != 0f && maxLong != 0f && minLong != 0f) {
+            myFence = Geofence(maxLat, minLat, maxLong, minLong)
         }
 
     }
@@ -447,10 +439,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     /**
      * class that is responsible for storing the geofence data
      */
-    class Geofence( val max_lat: Float, val min_lat: Float, val max_long: Float, val min_long: Float) {
+    class Geofence(private val maxLat: Float, private val minLat: Float, private val maxLong: Float, private val minLong: Float) {
 
-        init {
-            /* for getting the coordinates the geofence uses
+        /*init {  //for getting the coordinates the geofence uses
+
             Log.d("Coordinates", "max_lat")
             Log.d("Coordinates", max_lat.toString())
             Log.d("Coordinates", "min_lat")
@@ -459,15 +451,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             Log.d("Coordinates", min_long.toString())
             Log.d("Coordinates", "max_long")
             Log.d("Coordinates", max_long.toString())
-            */
-        }
+
+        }*/
+
         /**
          * tells you if you are inside the stored geofence
          */
         fun insideFence(location: Location): Boolean {
             val lat = location.latitude.toFloat()
             val long = location.longitude.toFloat()
-            if (lat > min_lat && lat < max_lat && long > min_long && long < max_long )
+            if (lat > minLat && lat < maxLat && long > minLong && long < maxLong )
             {
                 return true
             }
