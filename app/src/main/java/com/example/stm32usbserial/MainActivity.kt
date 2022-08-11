@@ -313,7 +313,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
             .enableClassification()
             .enableMultipleObjects()
-            .setClassificationConfidenceThreshold(0.6f)
+            .setClassificationConfidenceThreshold(0.55f) //was 0.5f for demo vid
             .build()
         val detector = ObjectDetection.getClient(options)
 
@@ -433,10 +433,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      */
     private fun startGeofence() {
         //take the max and min lat and long listed, and create a geofence object with that info
-        val max_lat: Float = latCoordinateList.maxOrNull() ?: 0f
+        val max_lat: Float = latCoordinateList.maxOrNull() ?: 0f //should make a way to load in preset values
         val min_lat: Float = latCoordinateList.minOrNull() ?: 0f
         val max_long: Float = longCoordinateList.maxOrNull() ?: 0f
         val min_long: Float = longCoordinateList.minOrNull() ?: 0f
+
         if(max_lat != 0f && min_lat != 0f && max_long != 0f && min_long != 0f) {
             myFence = Geofence(max_lat, min_lat, max_long, min_long)
         }
@@ -447,13 +448,26 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
      * class that is responsible for storing the geofence data
      */
     class Geofence( val max_lat: Float, val min_lat: Float, val max_long: Float, val min_long: Float) {
+
+        init {
+            /* for getting the coordinates the geofence uses
+            Log.d("Coordinates", "max_lat")
+            Log.d("Coordinates", max_lat.toString())
+            Log.d("Coordinates", "min_lat")
+            Log.d("Coordinates", min_lat.toString())
+            Log.d("Coordinates", "min_long")
+            Log.d("Coordinates", min_long.toString())
+            Log.d("Coordinates", "max_long")
+            Log.d("Coordinates", max_long.toString())
+            */
+        }
         /**
          * tells you if you are inside the stored geofence
          */
         fun insideFence(location: Location): Boolean {
             val lat = location.latitude.toFloat()
             val long = location.longitude.toFloat()
-            if (lat > min_lat && lat < max_lat && long > min_long && long < max_long)
+            if (lat > min_lat && lat < max_lat && long > min_long && long < max_long )
             {
                 return true
             }

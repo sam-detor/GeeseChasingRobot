@@ -12,7 +12,7 @@ class Driver internal constructor() {
     private var outOfBounds = false
 
     //PID
-    private val currentProfile = Constants.carpetProfile
+    private val currentProfile = Constants.grassProfile //can also be carpetProfile for inside testing
     private val forwardPID = MiniPID(currentProfile.forwardKP, currentProfile.forwardKI, 0.0)
     private val rotPID = MiniPID(currentProfile.rotKP, 0.0, 0.0)
 
@@ -39,7 +39,10 @@ class Driver internal constructor() {
      * Forward speed is bounded [0.0,1.0], Rotation speed is bounded [-1.0,1.0]
      */
     fun drive(detectionResults: List<BoxWithText>):Pair<Float, Float> { //Pair(forward, rotation)
-        //TO-DO GPS NOT IMPLEMENTED
+        if (outOfBounds) //If the GPS says we're out of bounds
+        {
+            return Pair(0f,0f)
+        }
         var gooseBox: BoxWithText? = null
         var currentBoxSize = 2000000
 
@@ -58,7 +61,7 @@ class Driver internal constructor() {
                     currentBoxSize = currentResultSize
                 }
             }
-            else if(currentResultSize < Constants.SMALL_BOX_THRESHOLD) //if the box is not a goose and is under the SMALL_BOX_THRESHOLD
+            else if(currentResultSize < Constants.SMALL_BOX_THRESHOLD && result.box.bottom < Constants.CENTER_IN_PIXELS) //if the box is not a goose and is under the SMALL_BOX_THRESHOLD
             {
                 if (currentResultSize < currentSmallBoxSize) { //record the smallest "small box"
                     smallBox = result
@@ -98,6 +101,7 @@ class Driver internal constructor() {
             {
                 myPastFrameStatistics.frames_idle = 0
                 return Pair(0f, currentProfile.rotThreshold + 0.2f)
+                //return Pair(0f, 1f), for outside b/c of the chassis, need to rotate at full speed
             }
         }
         //increment the idle frame value and stop the robot
@@ -182,8 +186,8 @@ class Driver internal constructor() {
         }
 
         //log the speeds for the 7 frame grace period
-        myPastSpeeds.prevExploreForward = currentProfile.forwardThreshold + 0.3f
-        myPastSpeeds.prevExploreRot = prevExploreRot
+        myPastSpeeds.prevExploreForward = currentProfile.forwardThreshold + 0.3f //0.9f for outside, chassis need to rotate
+        myPastSpeeds.prevExploreRot = prevExploreRot                            //at a high speed so it doesn't get stuck
 
         return Pair(myPastSpeeds.prevExploreForward, myPastSpeeds.prevExploreRot)
 
