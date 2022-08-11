@@ -1,3 +1,15 @@
+/**
+ * Main activity for Geese Chasing Robot App.
+ * To use the app, first take GPS data at the 4 corners of the area you want the robot to stay in. Then hit "chase geese"
+ * The robot will start obj detection, it will investigate identified objects that it thinks could be geese,
+ * and then once it recognizes a goose, it will chase it. If it can't find a goose in its line of sight after 200 frames, it will rotate
+ * If the robot exits the GPS dictated bounds of the property, it will stop.
+ *
+ * This code heavily draws from Guojun Chen's STM32UsbSerial and Android-Camera repos:
+ * @see https://github.com/Leonana69/STM32UsbSerial
+ * @see https://github.com/Leonana69/Android-Camera
+ */
+
 package com.example.stm32usbserial
 
 import android.Manifest
@@ -5,18 +17,18 @@ import android.annotation.SuppressLint
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.location.Location
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
+import android.os.Looper
 import android.view.SurfaceView
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.*
 import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
@@ -28,36 +40,43 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
+    //Camera feed related variables
     private var previewSV: SurfaceView? = null
     private var cameraSource: CameraSource? = null
     private var psv = PreviewSurfaceView()
 
     private val job = SupervisorJob()
     private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
-    private val TAG = "MLKit-ODT"
 
+    //Helper class instances
     private val objectDetectionHelper = ObjectDetectionHelper()
     private val myDriver = Driver()
+    private var myFence: Geofence? = null
 
-    //UI Stuff
-    private var mTvDevName: TextView? = null
-    private var mTvDevVendorId: TextView? = null
-    private var mTvDevProductId: TextView? = null
-    private var mTvRxMsg: TextView? = null
-    private var mEtTxMsg: EditText? = null
-    private var mBtnCnt: Button? = null
-    private var mBtnSend: Button? = null
+    // State variables
+    private var runObjectDetection = false
+
+    //STM32 connection variables
     private var mPodUsbSerialService: PodUsbSerialService? = null
     private var mBounded: Boolean = false
 
-    private var mBtnF: Button? = null
-    private var mBtnB: Button? = null
-    private var mBtnL: Button? = null
-    private var mBtnR: Button? = null
+    //UI
+    private var mBtnCnt: Button? = null
+    private var takeDataButton: Button? = null
+
+    //GPS variables
+    private var fusedLocationProviderClient: FusedLocationProviderClient? = null
+    private lateinit var locationRequest: LocationRequest
+    private lateinit var locationCallback: LocationCallback
+    private var latCoordinateList: MutableList<Float> = mutableListOf()
+    private var longCoordinateList: MutableList<Float> = mutableListOf()
+    private var takeData = false
+    private var wasOutOfBounds = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.chase_layout)
 
         //Camera UI
         previewSV = findViewById(R.id.sv_preview)
@@ -65,49 +84,95 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         //request camera permissions
         requestPermission()
 
-        // UI
-        mTvDevName = findViewById(R.id.tv_devName)
-        mTvDevVendorId = findViewById(R.id.tv_devVendorId)
-        mTvDevProductId = findViewById(R.id.tv_devProductId)
-        mTvRxMsg = findViewById(R.id.tv_rxMsg)
-        mEtTxMsg = findViewById(R.id.et_txMsg)
+        // Button instantiations
         mBtnCnt = findViewById(R.id.btn_cnt)
-        mBtnSend = findViewById(R.id.btn_send)
+        takeDataButton = findViewById(R.id.take_data)
+        val clearDataButton: Button = findViewById(R.id.clear_data)
+        val startButton: Button = findViewById(R.id.chase_geese)
 
-        mBtnF = findViewById(R.id.btn_front)
-        mBtnB = findViewById(R.id.btn_back)
-        mBtnL = findViewById(R.id.btn_left)
-        mBtnR = findViewById(R.id.btn_right)
-
-        // set click listener
+        // set on-click listeners (see OnClick for more details)
         mBtnCnt?.setOnClickListener(this)
-        mBtnSend?.setOnClickListener(this)
-        mBtnF?.setOnClickListener(this)
-        mBtnB?.setOnClickListener(this)
-        mBtnL?.setOnClickListener(this)
-        mBtnR?.setOnClickListener(this)
+        takeDataButton?.setOnClickListener(this)
+        clearDataButton.setOnClickListener(this)
+        startButton.setOnClickListener(this)
+
+        //GPS initialization
+
+        //Create location request and set callback speed and location accuracy
+        locationRequest = LocationRequest.create()
+        locationRequest.interval = 1000 * Constants.FAST_UPDATE_INTERVAL
+        locationRequest.fastestInterval = 1000 * Constants.FAST_UPDATE_INTERVAL
+        locationRequest.priority = Priority.PRIORITY_HIGH_ACCURACY
+
+        //override location callback
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                for (location in p0.locations){
+
+                    //if the user is trying to take GPS data for the geofence, save the newest latitude/longitude in the global lists
+                    if (takeData) {
+                        latCoordinateList.add(location.latitude.toFloat())
+                        longCoordinateList.add(location.longitude.toFloat())
+                        takeData = false
+                        Toast.makeText(applicationContext, "Data Taken", Toast.LENGTH_SHORT).show()
+                    }
+                    else {
+                        Toast.makeText(applicationContext, "Callback", Toast.LENGTH_SHORT).show()
+                    }
+
+                    if(myFence != null) { //if a geofence is in effect, check if the robot is inside the geofence based on the most recent data
+                        val inFence: Boolean? = myFence?.insideFence(location)
+
+                        //if the robot is outside the geofence, stop all driving
+                        if(inFence == false){
+                            myDriver.stopBot()
+                            wasOutOfBounds = true
+                            Toast.makeText(applicationContext, "Out of Bounds", Toast.LENGTH_SHORT).show()
+                        }
+                        //if the robot returned to bounds, re-enable vision tracking
+                        else if (wasOutOfBounds){
+                            myDriver.startBot()
+                            Toast.makeText(applicationContext, "In Bounds", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+        //start receiving accurate GPS data at regular intervals
+        startLocationCallbacks()
     }
 
     override fun onStart() {
         super.onStart()
 
+        //create camera source obj
         cameraSource = CameraSource(this, object: CameraSource.CameraSourceListener {
-            override fun processImage(image: Bitmap) {
-                //Log.d(TAG, "hi")
-                runObjectDetection(image)
-                //psv.setPreviewSurfaceView(image)
-
+            override fun processImage(image: Bitmap) { //when you receive the camera frame
+                if(runObjectDetection)
+                {
+                    //if obj detection in enabled, run vision tracking
+                    runObjectDetection(image)
+                }
+                else {
+                    //display raw camera feed
+                    psv.setPreviewSurfaceView(image)
+                }
             }
             override fun onFPSListener(fps: Int) {}
         })
+
+        //launch the task that processes the video
         mCoroutineScope.launch {
             cameraSource?.initCamera()
         }
+
+        //Creating the connection to the STM32F4 board
 
         // start and bind service
         val mIntent = Intent(this, PodUsbSerialService::class.java)
         startService(mIntent)
         bindService(mIntent, mConnection, BIND_AUTO_CREATE)
+
         // set filter for service
         val filter = IntentFilter()
         filter.addAction(PodUsbSerialService.ACTION_USB_MSGRECEIVED)
@@ -131,59 +196,35 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    // button click
+    // Controls what happens when the buttons get clicked
     override fun onClick(p0: View?) {
         when (p0?.id) {
             R.id.btn_cnt -> {
                 mPodUsbSerialService?.usbStartConnection()
             }
-            R.id.btn_send -> {
-                mPodUsbSerialService?.usbSendData(mEtTxMsg?.text.toString())
-                mEtTxMsg?.setText("")
+            R.id.take_data -> {
+                takeData()
             }
-            R.id.btn_front -> {
-                driveCar(1f,0f, 0f);
-               /* val cp: CommanderPacket = CommanderPacket(0F, 1F, 0F, 14000u)
-//                val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.23F)
-                mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-//                Log.i("CLICK", (cp as CrtpPacket).toByteArray().joinToString(" "){ it.toString(radix = 16).padStart(2, '0')})*/
+            R.id.clear_data -> {
+                clearData()
             }
-            R.id.btn_back -> {
-                val cp: CommanderPacket = CommanderPacket(0F, -1F, 0F, 14000u)
-                mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-            }
-            R.id.btn_left -> {
-                //val cp: CommanderPacket = CommanderPacket(1F, 0F, 0F, 14000u)
-                //mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                driveCar(0f,0f, -0.7f);
-            }
-            R.id.btn_right -> {
-                //val cp: CommanderPacket = CommanderPacket(-1F, 0F, 0F, 14000u)
-                //mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                driveCar(0f,0f, 1f);
+            R.id.chase_geese -> {
+                startGeofence()
+                runObjectDetection = true
             }
         }
     }
 
-    // broadcast receiver to update message and device info
+    // create broadcast receiver
     private val mBroadcastReceiver = object: BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
-        override fun onReceive(p0: Context?, p1: Intent?) {
-            when (p1?.action) {
-                PodUsbSerialService.ACTION_USB_MSGRECEIVED -> {
-                    mTvRxMsg?.text = mPodUsbSerialService?.mRxMsg
-                }
-                PodUsbSerialService.ACTION_USB_CONNECTED -> {
-                    mTvDevName?.text = getString(R.string.str_devName) + mPodUsbSerialService?.mDevName
-                    mTvDevVendorId?.text = getString(R.string.str_devVendorId) + mPodUsbSerialService?.mDevVendorId.toString()
-                    mTvDevProductId?.text = getString(R.string.str_devProductId) + mPodUsbSerialService?.mDevProductId.toString()
-                }
-            }
-        }
+        override fun onReceive(p0: Context?, p1: Intent?) {}
     }
 
-    private fun driveCar(forward: Float, side: Float, rot: Float) {
-        val cp = CommanderPacket(side, forward, rot, 14000.toShort().toUShort())
+    /**wrapper method for communicating with the board to drive the car.
+    Takes the forward and rotation speeds, with a range of [-1.0,1.0]*/
+    private fun driveCar(forward: Float, rot: Float) {
+        val cp = CommanderPacket(0f, forward, rot, 14000.toShort().toUShort())
         mPodUsbSerialService?.usbSendData(cp.toByteArray())
     }
 
@@ -246,35 +287,41 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-
+    /**
+     * high level method responsible for running the obj detection and autonomously
+     * driving the car based on vision tracking results
+     */
     private fun runObjectDetection(bitmap: Bitmap) {
+
         // Get pre-processed img in right form
         val processedImg = objectDetectionHelper.preProcessInputImage(bitmap)
         val image = processedImg?.let { InputImage.fromBitmap(it.bitmap, 0) }
 
-        //set up local model with custom image classification
+        //set up local model with custom bird classification model
         val localModel = LocalModel.Builder()
             .setAssetFilePath("lite-model_aiy_vision_classifier_birds_V1_3.tflite")
             .build()
 
-        // Step 2: Initialize the detector object
+        // Initialize the detector object
         val options = CustomObjectDetectorOptions.Builder(localModel)
             .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
             .enableClassification()
             .enableMultipleObjects()
-            .setClassificationConfidenceThreshold(0.6f)
+            .setClassificationConfidenceThreshold(0.55f) //was 0.5f for demo vid
             .build()
         val detector = ObjectDetection.getClient(options)
 
-        // Step 3: Feed given image to the detector
+        //Feed prepped image to the detector
         if (image != null) {
+
             detector.process(image).addOnSuccessListener { results ->
 
                 val detectedObjects: MutableList<BoxWithText> = mutableListOf()
 
+                //create a list of BoxWithText objects that hold the obj detector/classifier results
                 for (result in results) {
                     if (result.labels.isNotEmpty()) {
-                        var name = ""
+                        var name: String
                         if (result.labels.first().text == "Branta canadensis")
                         {
                             name = "Goose"
@@ -290,34 +337,139 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
 
                 // Draw the detection result on the input bitmap
-                val objectsForDriving = objectDetectionHelper.filterBoxes(detectedObjects)
                 val visualizedResult = objectDetectionHelper.drawDetectionResult(processedImg.bitmap, detectedObjects)
 
+                // use the detected objects list to determine forward and rotation driving speeds
+                val pair = myDriver.drive(detectedObjects)
 
-                val pair = myDriver.drive(objectsForDriving)
-
+                //Drive the car at the specified speeds if they are not zero
                 val (forward, rot) = pair
-                if (forward != null)
+                if (forward != 0f)
                 {
-                    driveCar(forward, 0f,0f)
+                    driveCar(forward, 0f)
                 }
-                if (rot != null)
+                if (rot != 0f)
                 {
-                    driveCar(0f, 0f,rot)
+                    driveCar(0f,rot)
                 }
-                    //Log.d(TAG,rot.toString())
-                    //Log.d(TAG,pair.toString())
 
-
+                //rotate the result image so it looks right when you display it on the screen
                 val rotationMatrix = Matrix()
                 rotationMatrix.postRotate(270F)
                 val rotatedImage = Bitmap.createBitmap(visualizedResult,0,0,visualizedResult.width, visualizedResult.height, rotationMatrix, true)
+
+                //display rotated image
                 psv.setPreviewSurfaceView(rotatedImage)
             }
+        }
+    }
+
+    //GPS Methods
+    /**
+     * Calls startLocationCallbacks if GPS permissions were granted. Call back method for requesting
+     * permissions
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLocationCallbacks()
+        }
+        else {
+            Toast.makeText(this, "Permissions not gotten", Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+
+    /**
+     * Starts the location callbacks used for the geofence. If Location permission were granted,
+     * it sets up the fusedLocation provider and launches the task that is responsible for the location callbacks.
+     * If permissions were not granted, it requests them
+     */
+    private fun startLocationCallbacks() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+        {
+            //start location callbacks
+            fusedLocationProviderClient?.requestLocationUpdates(locationRequest,
+                locationCallback,
+                Looper.getMainLooper())
+        }
+        else {
+            val permsArray = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            requestPermissions(permsArray, Constants.PERMISSION_LOCATION)
+        }
+    }
+
+    /**
+     * Sets the takeData param so that the location callback method knows to record the next received datapoint
+     */
+    private fun takeData() {
+        takeData = true
+    }
+
+    /**
+     * clears the arrays responsible for storing the latitude and longitude data for geofence creation
+     */
+    private fun clearData() {
+        latCoordinateList = mutableListOf()
+        longCoordinateList = mutableListOf()
+    }
+
+    /**
+     * creates a geofence object using the data collected in the latitude and longitude lists
+     */
+    private fun startGeofence() {
+        //take the max and min lat and long listed, and create a geofence object with that info
+        val maxLat: Float = latCoordinateList.maxOrNull() ?: 0f //should make a way to load in preset values
+        val minLat: Float = latCoordinateList.minOrNull() ?: 0f
+        val maxLong: Float = longCoordinateList.maxOrNull() ?: 0f
+        val minLong: Float = longCoordinateList.minOrNull() ?: 0f
+
+        if(maxLat != 0f && minLat != 0f && maxLong != 0f && minLong != 0f) {
+            myFence = Geofence(maxLat, minLat, maxLong, minLong)
+        }
+
+    }
+
+    /**
+     * class that is responsible for storing the geofence data
+     */
+    class Geofence(private val maxLat: Float, private val minLat: Float, private val maxLong: Float, private val minLong: Float) {
+
+        /*init {  //for getting the coordinates the geofence uses
+
+            Log.d("Coordinates", "max_lat")
+            Log.d("Coordinates", max_lat.toString())
+            Log.d("Coordinates", "min_lat")
+            Log.d("Coordinates", min_lat.toString())
+            Log.d("Coordinates", "min_long")
+            Log.d("Coordinates", min_long.toString())
+            Log.d("Coordinates", "max_long")
+            Log.d("Coordinates", max_long.toString())
+
+        }*/
+
+        /**
+         * tells you if you are inside the stored geofence
+         */
+        fun insideFence(location: Location): Boolean {
+            val lat = location.latitude.toFloat()
+            val long = location.longitude.toFloat()
+            if (lat > minLat && lat < maxLat && long > minLong && long < maxLong )
+            {
+                return true
+            }
+            return false
         }
     }
 }
 /**
  * A general-purpose data class to store detection result for visualization
+ * @see <https://codelabs.developers.google.com/mlkit-android-odt#6>
  */
 data class BoxWithText(val box: Rect, val text: String)

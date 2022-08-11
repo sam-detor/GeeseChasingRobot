@@ -25,6 +25,12 @@ import java.util.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/**
+ * Class responsible for dealing with the phone camera. Produces the raw frame for processing by
+ * overriding the processImage method.
+ * Source: https://github.com/Leonana69/Android-Camera/blob/main/app/src/main/java/com/example/android_camera/CameraSource.kt
+ * @author Guojun Chen
+ */
 class CameraSource(
     private val context: Context,
     private val listener: CameraSourceListener) {

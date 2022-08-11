@@ -2,6 +2,11 @@ package com.example.stm32usbserial
 
 import java.nio.ByteBuffer
 
+/**
+ * Class that's responsible for the packet format specialized for driving the car, extends CrtpPacket
+ * Source: https://github.com/Leonana69/STM32UsbSerial/blob/master/app/src/main/java/com/example/stm32usbserial/CommanderPacket.kt
+ * @author Guojun Chen
+ */
 class CommanderPacket(roll: Float, pitch: Float, yaw: Float, thrust: UShort): CrtpPacket(0, CrtpPort.COMMANDER) {
     private var mRoll: Float = roll
     private var mPitch: Float = pitch

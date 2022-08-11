@@ -4,8 +4,10 @@
     <option name="filePathToZoomLevelMap">
       <map>
         <entry key="..\:/Users/leona/AndroidStudioProjects/STM32UsbSerial/app/src/main/res/layout/activity_main.xml" value="0.22760416666666666" />
-        <entry key="app/src/main/res/layout/activity_main.xml" value="0.37010498046874996" />
-        <entry key="app/src/main/res/layout/activity_main2.xml" value="0.40182800292968746" />
+        <entry key="app/src/main/res/layout/activity_main.xml" value="0.3354385375976562" />
+        <entry key="app/src/main/res/layout/activity_main2.xml" value="0.38261997405966275" />
+        <entry key="app/src/main/res/layout/chase_layout.xml" value="0.5049747196561258" />
+        <entry key="app/src/main/res/layout/startscreen.xml" value="0.2615692138671875" />
       </map>
     </option>
   </component>

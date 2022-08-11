@@ -6,25 +6,34 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
 
+/**
+ * Class that holds helper methods for the object detection process
+ */
 class ObjectDetectionHelper {
 
+    /**
+     * pre-processes the image before it's fed to the object detector. Rotates the image 270°
+     */
     fun preProcessInputImage(bitmap: Bitmap): TensorImage? {
-        val width: Int = bitmap.width
-        val height: Int = bitmap.height
 
-        val size = if (height > width) width else height
+        //create the image processor to rotate the image by 270°
         val imageProcessor = ImageProcessor.Builder().apply {
             add(Rot90Op(3))
-            //add(ResizeWithCropOrPadOp(size, size))
-            //add(ResizeOp(width, height, ResizeOp.ResizeMethod.BILINEAR))
         }.build()
+
+        //create the "TensorImage" from the given bitmap
         val tensorImage = TensorImage(DataType.UINT8)
         tensorImage.load(bitmap)
+
+        //process the image
         return imageProcessor.process(tensorImage)
     }
 
     /**
      * Draw bounding boxes around objects together with the object's name.
+     * Method taken from the Build and deploy a custom object detection model with TensorFlow Lite (Android) codelab.
+     * Source: https://developers.google.com/codelabs/tflite-object-detection-android#0
+     * @author Khanh LeViet
      */
     fun drawDetectionResult(
         bitmap: Bitmap,
@@ -70,28 +79,4 @@ class ObjectDetectionHelper {
         return outputBitmap
     }
 
-    //this method determines what box the robot should try to drive towards
-    fun filterBoxes(detectionResults: List<BoxWithText>):List<BoxWithText>  {
-            //priority list for which box to choose
-            //1. goose with highest label confidence
-            //2. potentially other birds
-            //3. smallest box (within reason)
-            //SMALLEST GOOSE box is usually the most accurate
-
-        var size = 2000000
-        var myList: MutableList<BoxWithText> = mutableListOf()
-        for (result in detectionResults) {
-            if(result.text.startsWith("Goose"))
-            {
-                var indiv_size = result.box.width() * result.box.height()
-                if(indiv_size < size)
-                {
-                    myList = mutableListOf(result)
-                    size = indiv_size
-                }
-
-            }
-        }
-        return myList;
-    }
 }

@@ -50,4 +50,7 @@ dependencies {
 
     // TFLite
     implementation 'org.tensorflow:tensorflow-lite-task-vision:0.3.1'
+
+    //location stuff
+    implementation 'com.google.android.gms:play-services-location:20.0.0'
 }
