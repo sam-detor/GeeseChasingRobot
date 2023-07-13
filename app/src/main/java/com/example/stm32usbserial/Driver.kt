@@ -1,5 +1,10 @@
 package com.example.stm32usbserial
 
+import android.widget.Toast
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.io.IOException
+import java.net.Socket
 import kotlin.math.absoluteValue
 
 class Driver internal constructor() {
@@ -43,6 +48,7 @@ class Driver internal constructor() {
         {
             return Pair(0f,0f)
         }
+
         var gooseBox: BoxWithText? = null
         var currentBoxSize = 2000000
 

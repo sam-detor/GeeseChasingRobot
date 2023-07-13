@@ -26,4 +26,8 @@ public class Constants {
 
     //Debugging constants
     public static String TAG = "MLKit-ODT";
+
+    //size of image (as given by bitmap.getHeight/width)
+    public static int IMAGE_HEIGHT = 640; //IS X, functions as width in the code
+    public static int IMAGE_WIDTH = 480; //IS Y, functions as height in the code
 }
